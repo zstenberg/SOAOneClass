@@ -14,6 +14,7 @@ library(tidyverse)
 library(factoextra)
 library(readxl)
 library(e1071)
+library(glue)
 
 
 ###############################################################################
@@ -78,9 +79,10 @@ row.names(total.model) <- total.model$Table.Name.
 formula.pr <- paste0("~ ", glue_collapse(names(total)[2:86], " + "))
 
 model.pca <- prcomp(formula(formula.pr),
-                    data = total,
+                    data = total.model,
                     scale = TRUE,
                     center = TRUE)
+
 
 # Print summary information on the model
 summary(model.pca)
@@ -98,6 +100,47 @@ preds.pca <- predict(model.pca,
 
 # Print summary information on the PCs
 summary(preds.pca)
+
+
+# Plot and visualize most extreme PC1 and PC2
+data.plot <- total.model[c(which.max((preds.pca %>% data.frame)$PC1),
+                           which.max((preds.pca %>% data.frame)$PC2),
+                           which.min((preds.pca %>% data.frame)$PC1),
+                           which.min((preds.pca %>% data.frame)$PC2)),] %>%
+  gather(key = "Age", 
+         value = "Qx", 
+         -Table.Name.,
+         -Blend, 
+         -Smoker, 
+         -Male, 
+         -Female,
+         -ANB, 
+         - ALB) %>%
+  mutate(Age = as.numeric(gsub("X", "", Age)))
+
+ggplot(data = data.plot) +
+  geom_line(aes(x = Age, y = Qx, col = Table.Name.)) +
+  theme_minimal() +
+  theme(legend.position = c(.4, .85)) +
+  ggtitle("Mortality table shape for most extreme tables")
+
+ggplot(data = data.plot) +
+  geom_line(aes(x = Age, y = log(Qx), col = Table.Name.)) +
+  theme_minimal() +
+  theme(legend.position = c(.4, .85)) +
+  ggtitle("Log of mortality table shape for most extreme tables")
+
+
+# Numeric summary information for each table
+data.plot %>% 
+  split(.$Table.Name.) %>%
+  map(~ lm(Qx ~ Age, data = .)) %>%
+  map_dfr(~ broom::tidy(.), id = "source") %>%
+  filter(term == "Age") %>%
+  select(SlopeQx = estimate) %>%
+  bind_cols(data.plot %>% 
+          group_by(Table.Name.) %>% 
+          summarize(MeanQx = mean(Qx)), .)
 
 ###############################################################################
 # Prepare data for one-class SVM ##############################################
