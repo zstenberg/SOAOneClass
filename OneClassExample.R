@@ -59,16 +59,7 @@ for(cols in 2:(length(names(total)))) {
   total[, cols] <- as.numeric(total[, cols])
 }
 
-
-# Create some indicator columns based on table name
-total.model <- total %>%
-  mutate(Blend = grepl("Blend", Table.Name.),
-         Smoker = grepl("Smoker", Table.Name.),
-         Male = grepl("Male", Table.Name.),
-         Female = grepl("Female", Table.Name.),
-         ANB = grepl("ANB", Table.Name.),
-         ALB = grepl("ALB", Table.Name.))
-
+total.model <- total
 row.names(total.model) <- total.model$Table.Name.
 
 ###############################################################################
@@ -78,10 +69,11 @@ row.names(total.model) <- total.model$Table.Name.
 # Create PCA model for mortality tables
 formula.pr <- paste0("~ ", glue_collapse(names(total)[2:86], " + "))
 
+
 model.pca <- prcomp(formula(formula.pr),
                     data = total.model,
-                    scale = TRUE,
-                    center = TRUE)
+                    scale = TRUE, # Centering and scaling is key for a PCA
+                    center = TRUE) # Centering and scaling is key for a PCA
 
 
 # Print summary information on the model
@@ -109,13 +101,7 @@ data.plot <- total.model[c(which.max((preds.pca %>% data.frame)$PC1),
                            which.min((preds.pca %>% data.frame)$PC2)),] %>%
   gather(key = "Age", 
          value = "Qx", 
-         -Table.Name.,
-         -Blend, 
-         -Smoker, 
-         -Male, 
-         -Female,
-         -ANB, 
-         - ALB) %>%
+         -Table.Name.) %>%
   mutate(Age = as.numeric(gsub("X", "", Age)))
 
 ggplot(data = data.plot) +
@@ -131,7 +117,7 @@ ggplot(data = data.plot) +
   ggtitle("Log of mortality table shape for most extreme tables")
 
 
-# Numeric summary information for each table
+# Numeric summary information for each of the extreme tables
 data.plot %>% 
   split(.$Table.Name.) %>%
   map(~ lm(Qx ~ Age, data = .)) %>%
